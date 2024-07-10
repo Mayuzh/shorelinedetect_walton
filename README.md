@@ -41,5 +41,8 @@ This script is for educational and developmental purposes. The accuracy of rip c
 Contributions to enhance the script's functionality and performance are welcome. Please feel free to fork the repository, make improvements, and submit pull requests.
 
 ## Acknowledgments
-Thanks to Joshua Simmons for the original shoreline detection method: https://github.com/simmonsja/cnn-shoreline-detect
+Thanks to Joshua Simmons for the original shoreline detection method: 
+
+https://github.com/simmonsja/cnn-shoreline-detect
+
 Special thanks to OpenCV for their powerful image processing capabilities.
