@@ -25,7 +25,7 @@ The script is designed to continuously process video streams for shoreline detec
 To run the script, simply execute it in a Python environment:
 
 ```bash
-stream_vgg16_loop.py
+py stream_vgg16_loop.py
 ```
 
 ## Customization
