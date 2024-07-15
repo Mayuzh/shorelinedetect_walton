@@ -246,7 +246,7 @@ def plot_refined_single_prediction(dataX, dataPred, thres,cvClean=False,imReturn
         fig.canvas.draw()
         imData = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
         width, height = fig.canvas.get_width_height()
-        imData = imData.reshape((height, width, 3))
+        imData = imData.reshape((height*2, width*2, 3))
         imData = cv2.cvtColor(imData, cv2.COLOR_RGB2BGR)
         startH = np.where(imData[int(width / 2), :, 0] < 255)[0][0]
         endH = np.where(imData[int(width / 2), :, 0] < 255)[0][-1]
