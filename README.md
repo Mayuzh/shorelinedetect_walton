@@ -24,15 +24,12 @@ Please download the appropriate model based on your specific use case for shorel
 ## Usage
 The script is designed to continuously process video streams for shoreline detection. By default, it connects to an online video stream but can be modified to analyze local video files or other stream URLs.
 
-
-## Key Components:
-
-
 ## Execution
 To run the script, simply execute it in a Python environment:
 
 ```bash
 python stream_vgg16_loop.py
+python stream_vgg16_loop_time.py
 ```
 
 ## Customization
