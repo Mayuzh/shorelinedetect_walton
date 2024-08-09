@@ -20,13 +20,13 @@ from pytorch_models import hed_cnn, pretrained_weights, hed_predict_single
 
 # Load the model and measure time taken
 start_time = time.time()
-weightsPath = 'vgg16.pt'
+weightsPath = './models/vgg16_2.pt'
 hedModel = hed_cnn()
 hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=True, hedIn=True)
 print(f"Load model time: {time.time() - start_time:.4f} seconds")
 
 # Open the local video file for testing
-cap = cv2.VideoCapture("walton_lighthouse-2024-08-05-142219Z.mp4")
+cap = cv2.VideoCapture("./testing/walton_lighthouse-2024-08-05-142219Z.mp4")
 # Or open the Walton stream
 # cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
 

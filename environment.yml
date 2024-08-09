@@ -195,4 +195,3 @@ dependencies:
   - zlib-ng=2.2.1=hf036a51_0
   - zstandard=0.23.0=py311h51fa951_0
   - zstd=1.5.6=h915ae27_0
-prefix: /Users/monazhao/miniconda3/envs/shoreline_env

@@ -12,12 +12,12 @@ import cv2
 import torch
 
 # Load the model
-weightsPath = 'shorelineDetectModel_single.pt'
+weightsPath = './models/vgg16_2.pt'
 hedModel = hed_cnn()
 hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=True, hedIn=True)
 
 # Open the local video file for testing
-cap = cv2.VideoCapture("walton_lighthouse-2024-08-05-142219Z.mp4")
+cap = cv2.VideoCapture("./testing/walton_lighthouse-2024-08-05-142219Z.mp4")
 # Or open the Walton stream
 # cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
 
