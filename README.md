@@ -20,6 +20,7 @@ conda env create -f environment.yml
 The pre-trained machine learning models specifically trained with shoreline data are available [here](https://drive.google.com/drive/folders/1dFww-SBKHgCnK2Ien5nOHc4rU36jujd_?usp=sharing).
 + `vgg16_1.0` is trained to detect shorelines from time-averaged (TIMEX) images, where the shoreline is defined as the wet/dry boundary.
 + `vgg16_2.0` is trained to detect shorelines from individual video frames, where the shoreline is defined as the water/land boundary.
+
 Please download the appropriate model based on your specific use case for shoreline detection.
 ## Usage
 The script is designed to continuously process video streams for shoreline detection. By default, it connects to an online video stream but can be modified to analyze local video files or other stream URLs.
