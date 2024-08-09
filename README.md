@@ -3,7 +3,7 @@
 ## Overview
 This Python script utilizes advanced object detection techniques for identifying shoreline movements in video streams. The script employs VGG16, a type of Convolutional Neural Network (CNN), to analyze video footage and detect shorelines. This application is particularly valuable for observing shoreline changes, aiding in coastal management and environmental monitoring efforts.
 
-Note: This script and associated models are prototypes and are currently configured for rip current detection only from the Walton lighthouse camera. Do not attempt to use it for any other network camera.
+Note: This script and associated models are prototypes and are currently configured for shoreline detection only from the Walton lighthouse camera. Do not attempt to use it for any other network camera.
 
 ## Installation and Setup
 Before running the script, ensure you have Python installed on your system. 
