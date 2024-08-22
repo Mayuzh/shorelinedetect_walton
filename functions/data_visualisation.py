@@ -145,8 +145,9 @@ def plot_refined_predictions(prntNum, dataX, dataY, dataPred, thres,cvClean=Fals
         ax1.scatter(predU[contBool], predV[contBool], s=5, color='m', alpha=0.07)
     
     else:
-        # # perform a weighted combination
-        combined = dataPred[1]* 0.5 + dataPred[2] * 0.5
+        # perform a weighted combination
+        #combined = dataPred[1]* 0.5 + dataPred[2] * 0.5
+        combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
         predMask = mask2binary(combined,thres)
         ax1.scatter(mask_to_uv(predMask)[0],mask_to_uv(predMask)[1],s=5,color='m',alpha=0.07)
 
@@ -181,64 +182,101 @@ def plot_refined_single_prediction(dataX, dataPred, thres,cvClean=False,imReturn
     ax1.imshow(dataX)
     #ax1.scatter(mask_to_uv(dataY[0,...])[0],mask_to_uv(dataY[0,...])[1],s=5,color='r',alpha=0.5)
 
+    # if cvClean:
+    #     combined = (dataPred[:, 2, :, :] * 0.4 + dataPred[:, 3, :, :] * 0.4 + dataPred[:, 4, :, :] * 0.1 + dataPred[:, 5, :, :] * 0.1)
+        
+    #     cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
+
+    #     # Apply Gaussian blur to smooth the image
+    #     cvIm = cv2.GaussianBlur(cvIm, (3, 3), 0)
+
+    #     # Find the shoreline blobs as contours
+    #     ret, thresh = cv2.threshold(cvIm, int(thres * 255), 255, cv2.THRESH_BINARY)
+
+    #     # Use morphological operations to refine contours
+    #     kernel = np.ones((3, 3), np.uint8)
+    #     #thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    #     thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+
+    #     # Find the refined contours
+    #     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    #     # Filter contours by geometric properties
+    #     perimeter = np.array([cv2.arcLength(_, True) for _ in contours])
+    #     radius = []
+    #     for _ in contours:
+    #         _, tmpRadius = cv2.minEnclosingCircle(_)
+    #         radius.append(tmpRadius)
+    #     # Filter contours based on radius and perimeter
+    #     contInd = np.where((np.array(radius) > 0.25 * np.array(radius).max()) & (perimeter > 0.25 * perimeter.max()))[0]
+    #     # If no contours meet the criteria, fallback to the largest contour by shape
+    #     if contInd.shape[0] < 1:
+    #         contInd = np.array([np.array([_.shape[0] for _ in contours]).argmax()])
+        
+    #     # Binarize the combined predictions using the threshold
+    #     predMask = mask2binary(combined.squeeze(0), thres)
+    #     # Extract the coordinates of the positive predictions
+    #     predU = mask_to_uv(predMask)[0]
+    #     predV = mask_to_uv(predMask)[1]
+        
+    #     # Boolean array to store whether each prediction point is within a valid contour
+    #     contBool = np.full((predU.shape[0],), False)
+    #     for ii, (thisU, thisV) in enumerate(zip(predU, predV)):
+    #         thisBools = []
+    #         for _ in contInd:
+    #             thisBools.append(cv2.pointPolygonTest(contours[_], (thisU, thisV), True) > 0)
+    #         contBool[ii] = np.any(thisBools)
+        
+    #     # Scatter plot the points that are within the valid contours
+    #     ax1.scatter(predU[contBool], predV[contBool], s=5, color='m', alpha=0.07)
     if cvClean:
-        #combined = dataPred[1] * 0.75 + dataPred[2] * 0.25
-        #combined = (dataPred[1] * 0.2 + dataPred[2] * 0.3 + dataPred[3] * 0.3 + dataPred[4] * 0.2)
-        #combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
         combined = (dataPred[:, 2, :, :] * 0.4 + dataPred[:, 3, :, :] * 0.4 + dataPred[:, 4, :, :] * 0.1 + dataPred[:, 5, :, :] * 0.1)
         
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
-
-        # Apply Gaussian blur to smooth the image
         cvIm = cv2.GaussianBlur(cvIm, (5, 5), 0)
 
-        # Find the shoreline blobs as contours
-        ret, thresh = cv2.threshold(cvIm, int(thres * 255), 255, cv2.THRESH_BINARY)
+        # Apply adaptive thresholding to handle varying contrasts
+        thresh = cv2.adaptiveThreshold(cvIm, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
-        # Use morphological operations to refine contours
+        # Apply morphological operations for cleaning up
         kernel = np.ones((3, 3), np.uint8)
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+        #thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
 
-        # Find the refined contours
-        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Perform skeletonization to get a thin, consistent line
+        skeleton = cv2.ximgproc.thinning(thresh)
 
-        # Filter contours by geometric properties
-        isConvex = np.array([cv2.isContourConvex(_) for _ in contours])
-        area = np.array([cv2.contourArea(_) for _ in contours])
-        perimeter = np.array([cv2.arcLength(_, True) for _ in contours])
-        radius = []
-        for _ in contours:
-            _, tmpRadius = cv2.minEnclosingCircle(_)
-            radius.append(tmpRadius)
-        # Filter contours based on radius and perimeter
-        contInd = np.where((np.array(radius) > 0.25 * np.array(radius).max()) & (perimeter > 0.25 * perimeter.max()))[0]
-        # If no contours meet the criteria, fallback to the largest contour by shape
-        if contInd.shape[0] < 1:
-            contInd = np.array([np.array([_.shape[0] for _ in contours]).argmax()])
-        
-        # Binarize the combined predictions using the threshold
+        # Dilate the skeleton to achieve the desired thickness
+        kernel = np.ones((3, 3), np.uint8)
+        skeleton = cv2.dilate(skeleton, kernel, iterations=1)
+
+        # Find contours on the skeletonized image
+        contours, hierarchy = cv2.findContours(skeleton, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter small contours
+        min_contour_area = 80  # Adjust this based on your specific use case
+        contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_contour_area]
+
+        # Extract contour points and plot them
         predMask = mask2binary(combined.squeeze(0), thres)
-        # Extract the coordinates of the positive predictions
         predU = mask_to_uv(predMask)[0]
         predV = mask_to_uv(predMask)[1]
         
-        # Boolean array to store whether each prediction point is within a valid contour
         contBool = np.full((predU.shape[0],), False)
         for ii, (thisU, thisV) in enumerate(zip(predU, predV)):
             thisBools = []
-            for _ in contInd:
-                thisBools.append(cv2.pointPolygonTest(contours[_], (thisU, thisV), True) > 0)
+            for _ in contours:
+                thisBools.append(cv2.pointPolygonTest(_, (thisU, thisV), True) > 0)
             contBool[ii] = np.any(thisBools)
         
-        # Scatter plot the points that are within the valid contours
-        ax1.scatter(predU[contBool], predV[contBool], s=5, color='m', alpha=0.07)
-    
+        # Scatter plot with reduced point size
+        ax1.scatter(predU[contBool], predV[contBool], s=2, color='magenta', alpha=0.07)
+
     else:
         # Perform a weighted combination
         combined = dataPred[:, 1, :, :] * 0.5 + dataPred[:, 2, :, :] * 0.5
         predMask = mask2binary(combined.squeeze(0), thres)
-        ax1.scatter(mask_to_uv(predMask)[0], mask_to_uv(predMask)[1], s=5, color='m', alpha=0.07)
+        ax1.scatter(mask_to_uv(predMask)[0], mask_to_uv(predMask)[1], s=5, color='darkmagenta', alpha=0.07)
 
     if imReturn:
         # this is for writing a gif output
