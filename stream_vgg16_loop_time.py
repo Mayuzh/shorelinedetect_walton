@@ -26,9 +26,11 @@ hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=Tr
 print(f"Load model time: {time.time() - start_time:.4f} seconds")
 
 # Open the local video file for testing
-cap = cv2.VideoCapture("./testing/jennette_north-2024-08-09-153342Z.mp4")
+#cap = cv2.VideoCapture("./testing/walton_lighthouse-2024-08-05-142219Z.mp4")
+#cap = cv2.VideoCapture("./testing/check/twinlake.mp4")
+cap = cv2.VideoCapture("./testing/oakisland_west/oakisland_west-2023-12-17-191120Z.mp4")
 # Or open the Walton stream
-# cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+#cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
 
 # Define image size
 imSize = (320, 480)
@@ -62,7 +64,7 @@ while cap.isOpened():
 
         # Measure time for post-processing
         start_time = time.time()
-        frame_image = plot_refined_single_prediction(imgData, model_pred, thres=0.8, cvClean=True, imReturn=True)
+        frame_image = plot_refined_single_prediction(imgData, model_pred, thres=0.5, cvClean=True, imReturn=True)
         postprocess_time = time.time() - start_time
 
         # Measure time to display the result
@@ -71,11 +73,11 @@ while cap.isOpened():
         display_time = time.time() - start_time
 
         # Print timings for each step
-        print(f"Read time: {read_time:.4f} seconds")
-        print(f"Preprocessing time: {preprocessing_time:.4f} seconds")
-        print(f"Prediction time: {prediction_time:.4f} seconds")
-        print(f"Post-process time: {postprocess_time:.4f} seconds")
-        print(f"Display time: {display_time:.4f} seconds")
+        # print(f"Read time: {read_time:.4f} seconds")
+        # print(f"Preprocessing time: {preprocessing_time:.4f} seconds")
+        # print(f"Prediction time: {prediction_time:.4f} seconds")
+        # print(f"Post-process time: {postprocess_time:.4f} seconds")
+        # print(f"Display time: {display_time:.4f} seconds")
 
         # Exit loop if 'ESC' key is pressed
         if cv2.waitKey(10) & 0xFF == 27:

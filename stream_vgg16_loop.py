@@ -1,4 +1,7 @@
 import sys
+import cv2
+import torch
+
 sys.path.insert(1, './functions')
 
 import data_preprocessing
@@ -8,18 +11,18 @@ from data_preprocessing import load_single_image
 from data_visualisation import plot_refined_single_prediction
 from pytorch_models import hed_cnn, pretrained_weights, hed_predict_single
 
-import cv2
-import torch
-
-# Load the model
-weightsPath = './models/vgg16_2.pt'
+# Load the model 
+weightsPath = './models/vgg16_4.pt'
 hedModel = hed_cnn()
 hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=True, hedIn=True)
 
 # Open the local video file for testing
-cap = cv2.VideoCapture("./testing/walton_lighthouse-2024-08-05-142219Z.mp4")
+#cap = cv2.VideoCapture("./testing/walton_lighthouse-2024-08-05-142219Z.mp4")
+#cap = cv2.VideoCapture("./testing/check/twinlake.mp4")
+cap = cv2.VideoCapture("./testing/poster_clip/untitled2.mp4")
+
 # Or open the Walton stream
-# cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+#cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
 
 # Define image size
 imSize = (320, 480)
@@ -33,20 +36,21 @@ else:
 # Process the video stream
 while cap.isOpened():
     ret, frame = cap.read()
+
     if ret:
-        # Preprocess the frame
+        # image preprocessing
         imgData = load_single_image(frame, imSize)
         if imgData.max() > 1:
             imgData = imgData / 255
         imgData = torch.from_numpy(imgData.transpose((2, 0, 1))).float().unsqueeze(0)
 
-        # Model prediction
+        # model prediction
         model_pred = hed_predict_single(hedModel, imgData)
 
-        # Post-process the prediction
+        # post-processing
         frame_image = plot_refined_single_prediction(imgData, model_pred, thres=0.8, cvClean=True, imReturn=True)
 
-        # Display the processed frame
+        # display the result
         cv2.imshow('PreviewWindow', frame_image)
 
         # Exit loop if 'ESC' key is pressed
