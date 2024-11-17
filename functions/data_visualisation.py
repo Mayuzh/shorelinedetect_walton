@@ -61,13 +61,13 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
 
         # Apply Gaussian blur to smooth the image
-        cvIm = cv2.GaussianBlur(cvIm, (15, 15), 0)
+        cvIm = cv2.GaussianBlur(cvIm, (11, 11), 0)
         adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=50)
         ret, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
         
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
-        skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=30) 
+        skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=50) 
         
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
         ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.4)
@@ -141,7 +141,7 @@ def filter_contours(skeleton, min_contour_length=50, distance_threshold=20):
     
     # Filter contours based on length and proximity to the main contour
     for contour in contours:
-        contour_length = cv2.arcLength(contour, closed=False)
+        #contour_length = cv2.arcLength(contour, closed=False)
         #print(contour_length)
         
         # Get the start and end points of the current contour
@@ -205,6 +205,10 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
     axs[1, 2].imshow(dataX, cmap='gray')
     axs[1, 2].set_title("Filtering base on Location and Length")
     axs[1, 2].axis('off')
+    
+    axs[1, 3].imshow(dataX, cmap='gray')
+    axs[1, 3].set_title("Original")
+    axs[1, 3].axis('off')
 
     if cvClean:
         # Weighted combination
