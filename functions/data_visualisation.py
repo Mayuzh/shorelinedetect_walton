@@ -61,13 +61,14 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
 
         # Apply Gaussian blur to smooth the image
-        cvIm = cv2.GaussianBlur(cvIm, (11, 11), 0)
-        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=50)
+        cvIm = cv2.GaussianBlur(cvIm, (15, 15), 0)
+        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
         ret, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
         
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
-        skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=50) 
+        skeleton = filter_short_contours(skeleton, min_contour_length=50) 
+        #skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=50) 
         
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
         ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.4)
@@ -84,7 +85,7 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         fig.canvas.draw()
         imData = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
         width, height = fig.canvas.get_width_height()
-        imData = imData.reshape((height*2, width*2, 3))
+        imData = imData.reshape((height, width, 3))
         imData = cv2.cvtColor(imData, cv2.COLOR_RGB2BGR)
         startH = np.where(imData[int(width / 2), :, 0] < 255)[0][0]
         endH = np.where(imData[int(width / 2), :, 0] < 255)[0][-1]
@@ -199,24 +200,20 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
     axs[1, 0].axis('off')
     
     axs[1, 1].imshow(dataX, cmap='gray')
-    axs[1, 1].set_title("Filtering base on Length")
+    axs[1, 1].set_title("Filtering base on Linearity")
     axs[1, 1].axis('off')
     
     axs[1, 2].imshow(dataX, cmap='gray')
-    axs[1, 2].set_title("Filtering base on Location and Length")
+    axs[1, 2].set_title("Filtering base on Length")
     axs[1, 2].axis('off')
     
-    axs[1, 3].imshow(dataX, cmap='gray')
-    axs[1, 3].set_title("Original")
-    axs[1, 3].axis('off')
+    #axs[1, 3].imshow(dataX, cmap='gray')
+    #axs[1, 3].set_title("Original")
+    #axs[1, 3].axis('off')
 
     if cvClean:
         # Weighted combination
         combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
-        
-        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=50)
-        print("adaptive_thres_value:", adaptive_thres_value)
-        #plot_confidence_distribution(combined.squeeze(0).cpu().numpy())
         
         heatmap = axs[0, 0].imshow(combined.squeeze(0).cpu().numpy(), cmap='hot', interpolation='nearest')
         fig.colorbar(heatmap, ax=axs[0, 0], label="Confidence Score")
@@ -230,7 +227,6 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         
         # Convert to cvIm for OpenCV operations
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
-
         # Apply Gaussian blur
         cvIm_blurred = cv2.GaussianBlur(cvIm, (7, 7), 0)
         
@@ -244,24 +240,36 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         # axs[0, 2].set_title("After Adaptive Thresh")
         # axs[0, 2].axis('off')
 
+        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=30)
+        print("adaptive_thres_value:", adaptive_thres_value)
         # Apply threshold
-        ret, thresh = cv2.threshold(cvIm_blurred, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
-        
+        _, thresh = cv2.threshold(cvIm_blurred, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
+        _, thresh_otsu = cv2.threshold(cvIm_blurred, int(0.8 * 255), 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        #thresh_otsu = cv2.adaptiveThreshold(cvIm_blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
         # Display thresholded image
         axs[0, 3].imshow(thresh, cmap='gray')
         axs[0, 3].set_title("Thresholded Image")
         axs[0, 3].axis('off')
+        # Display thresholded image
+        axs[1, 3].imshow(thresh_otsu, cmap='gray')
+        axs[1, 3].set_title("Thresholded Otsu Image")
+        axs[1, 3].axis('off')
         
         # Perform skeletonization for thin contours
         skeleton = cv2.ximgproc.thinning(thresh, thinningType=cv2.ximgproc.THINNING_ZHANGSUEN)
         skeleton_ori = np.column_stack(np.where(skeleton > 0)) 
         axs[1, 0].scatter(skeleton_ori[:, 1], skeleton_ori[:, 0], s=1, color='m', alpha=0.4)
 
-        skeleton1 = filter_short_contours(skeleton, min_contour_length=100)
+        #skeleton_otsu = cv2.ximgproc.thinning(thresh_otsu, thinningType=cv2.ximgproc.THINNING_ZHANGSUEN)
+        #skeleton_ori_otsu = np.column_stack(np.where(skeleton_otsu > 0)) 
+        #axs[1, 1].scatter(skeleton_ori_otsu[:, 1], skeleton_ori_otsu[:, 0], s=1, color='m', alpha=0.4)
+
+        skeleton1 = filter_contours(skeleton, min_contour_length=100, distance_threshold=20)
         skeleton_coords1 = np.column_stack(np.where(skeleton1 > 0)) 
         axs[1, 1].scatter(skeleton_coords1[:, 1], skeleton_coords1[:, 0], s=1, color='m', alpha=0.4)
         
-        skeleton2 = filter_contours(skeleton, min_contour_length=100, distance_threshold=30) 
+        skeleton2 = filter_short_contours(skeleton, min_contour_length=100) 
         # Scatter plot for skeleton coordinates 
         skeleton_coords2 = np.column_stack(np.where(skeleton2 > 0)) 
         axs[1, 2].scatter(skeleton_coords2[:, 1], skeleton_coords2[:, 0], s=1, color='m', alpha=0.4)

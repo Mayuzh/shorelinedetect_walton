@@ -18,12 +18,14 @@ from data_preprocessing import load_single_image
 from data_visualisation import plot_refined_single_prediction
 from pytorch_models import hed_cnn, pretrained_weights, hed_predict_single
 
+
 # Load the model and measure time taken
 start_time = time.time()
 weightsPath = './models/vgg16_4.pt'
 hedModel = hed_cnn()
 hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=True, hedIn=True)
 print(f"Load model time: {time.time() - start_time:.4f} seconds")
+
 
 # Open the local video file for testing
 # cap = cv2.VideoCapture("./testing/oakisland_west/oakisland_west-2023-12-17-122124Z_trim.mp4")
@@ -48,27 +50,28 @@ while cap.isOpened():
     read_time = time.time() - start_time
 
     if ret:
-        # Measure time for image preprocessing
-        start_time = time.time()
-        imgData = load_single_image(frame, imSize)
-        if imgData.max() > 1:
-            imgData = imgData / 255
-        imgData = torch.from_numpy(imgData.transpose((2, 0, 1))).float().unsqueeze(0)
-        preprocessing_time = time.time() - start_time
+        # # Measure time for image preprocessing
+        # start_time = time.time()
+        # imgData = load_single_image(frame, imSize)
+        # if imgData.max() > 1:
+        #     imgData = imgData / 255
+        # imgData = torch.from_numpy(imgData.transpose((2, 0, 1))).float().unsqueeze(0)
+        # preprocessing_time = time.time() - start_time
 
-        # Measure time for model prediction
-        start_time = time.time()
-        model_pred = hed_predict_single(hedModel, imgData)
-        prediction_time = time.time() - start_time
+        # # Measure time for model prediction
+        # start_time = time.time()
+        # model_pred = hed_predict_single(hedModel, imgData)
+        # prediction_time = time.time() - start_time
 
-        # Measure time for post-processing
-        start_time = time.time()
-        frame_image = plot_refined_single_prediction(imgData, model_pred, thres=0.5, cvClean=True, imReturn=True)
-        postprocess_time = time.time() - start_time
+        # # Measure time for post-processing
+        # start_time = time.time()
+        # frame_image = plot_refined_single_prediction(imgData, model_pred, thres=0.5, cvClean=True, imReturn=True)
+        # postprocess_time = time.time() - start_time
 
         # Measure time to display the result
         start_time = time.time()
-        cv2.imshow('PreviewWindow', frame_image)
+        #cv2.imshow('PreviewWindow', frame_image)
+        cv2.imshow('PreviewWindow', frame)
         display_time = time.time() - start_time
 
         # Print timings for each step
