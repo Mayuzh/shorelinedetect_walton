@@ -1,21 +1,21 @@
-import sys
 import time
 import cv2
 import torch
+import sys
+from datetime import datetime 
+
+import os
+#os.environ["OMP_NUM_THREADS"] = "1" 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+#os.environ["NUMPY_EXPERIMENTAL_ARRAY_FUNCTION"] = "0"
 
 sys.path.insert(1, './functions')
-
 import data_preprocessing
 import data_visualisation
 import pytorch_models
 from data_preprocessing import load_single_image
 from data_visualisation import plot_refined_single_prediction
 from pytorch_models import hed_cnn, pretrained_weights, hed_predict_single
-
-
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-os.environ["NUMPY_EXPERIMENTAL_ARRAY_FUNCTION"] = "0"
 
 
 # Check if CUDA is available and set the device
@@ -36,8 +36,8 @@ print(f"Load model time: {time.time() - start_time:.4f} seconds")
 cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
 
 # Define image size
-imSize = (320, 480)
-
+imSize = (960, 1280)
+#imSize = (320, 480)
 # Check if the video file is opened successfully
 if not cap.isOpened():
     print("Error: Could not open video file.")
@@ -46,6 +46,15 @@ else:
 
 # Process the video stream
 while cap.isOpened():
+    # Check current time
+    now = datetime.now()
+    current_hour = now.hour
+    # If the current time is outside 7 AM to 7 PM, handle downtime
+    if current_hour < 7 or current_hour >= 19:
+        print("STREAM OFF: Current time is outside operational hours (7 AM to 7 PM).")
+        time.sleep(300)  # Wait for 5 minutes before checking again
+        continue
+
     # Measure time to read one frame from the stream
     start_time = time.time()
     ret, frame = cap.read()
@@ -74,6 +83,7 @@ while cap.isOpened():
 
         # Measure time to display the result
         start_time = time.time()
+        frame_image = cv2.resize(frame_image, (1280, 960))
         cv2.imshow('PreviewWindow', frame_image)
         display_time = time.time() - start_time
 
@@ -88,7 +98,8 @@ while cap.isOpened():
         if cv2.waitKey(10) & 0xFF == 27:
             break
     else:
-        break
+        print("Error: Could not read frame. Retrying...")
+        time.sleep(60)  # Wait for 60 seconds before retrying
 
 # Release resources and close all OpenCV windows
 cap.release()

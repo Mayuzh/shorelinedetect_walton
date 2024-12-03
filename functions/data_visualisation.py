@@ -61,7 +61,7 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
 
         # Apply Gaussian blur to smooth the image
-        cvIm = cv2.GaussianBlur(cvIm, (15, 15), 0)
+        cvIm = cv2.GaussianBlur(cvIm, (17, 17), 0)
         adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
         ret, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
         
@@ -71,13 +71,13 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         #skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=50) 
         
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
-        ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.4)
+        ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.2)
 
     else:
         # Perform a weighted combination
         combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
         predMask = mask2binary(combined.squeeze(0), thres)
-        ax1.scatter(mask_to_uv(predMask)[0], mask_to_uv(predMask)[1], s=7, color='darkmagenta', alpha=0.07)
+        ax1.scatter(mask_to_uv(predMask)[0], mask_to_uv(predMask)[1], s=1, color='darkmagenta', alpha=0.07)
 
     if imReturn:
         # this is for writing a gif output

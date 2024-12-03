@@ -151,7 +151,7 @@ def pretrained_weights(model, weightsPath=None, applyWeights=False, hedIn=False)
         model.apply(weights_init)
 
         #grab a pretrained vgg
-        pretrained_dict = torch.load(weightsPath, map_location='cpu')
+        pretrained_dict = torch.load(weightsPath, map_location='cpu', weights_only=True)
         if not hedIn:
             pretrained_dict = convert_vgg(pretrained_dict)
 
