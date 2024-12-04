@@ -33,11 +33,15 @@ hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=Tr
 print(f"Load model time: {time.time() - start_time:.4f} seconds")
 
 # Open the video stream
-cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+#cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+cap = cv2.VideoCapture("./testing/walton_lighthouse/walton_lighthouse-2024-12-02-221643Z.mp4")
 
 # Define image size
 imSize = (960, 1280)
+#imSize = (1920, 2560)
 #imSize = (320, 480)
+frame_counter = 0
+
 # Check if the video file is opened successfully
 if not cap.isOpened():
     print("Error: Could not open video file.")
@@ -50,10 +54,10 @@ while cap.isOpened():
     now = datetime.now()
     current_hour = now.hour
     # If the current time is outside 7 AM to 7 PM, handle downtime
-    if current_hour < 7 or current_hour >= 19:
-        print("STREAM OFF: Current time is outside operational hours (7 AM to 7 PM).")
-        time.sleep(300)  # Wait for 5 minutes before checking again
-        continue
+    # if current_hour < 7 or current_hour >= 19:
+    #     print("STREAM OFF: Current time is outside operational hours (7 AM to 7 PM).")
+    #     time.sleep(300)  # Wait for 5 minutes before checking again
+    #     continue
 
     # Measure time to read one frame from the stream
     start_time = time.time()
@@ -61,6 +65,13 @@ while cap.isOpened():
     read_time = time.time() - start_time
 
     if ret:
+        # Skip every other frame
+        if frame_counter % 7 != 0:
+            frame_counter += 1
+            continue
+        
+        frame_counter += 1  # Increment frame counter
+
         # Measure time for image preprocessing
         start_time = time.time()
         imgData = load_single_image(frame, imSize)
@@ -93,7 +104,8 @@ while cap.isOpened():
         print(f"Prediction time: {prediction_time:.4f} seconds")
         print(f"Post-process time: {postprocess_time:.4f} seconds")
         print(f"Display time: {display_time:.4f} seconds")
-
+        total = read_time + preprocessing_time + prediction_time + postprocess_time + display_time
+        print(f"Total time: {total:.4f} seconds")
         # Exit loop if 'ESC' key is pressed
         if cv2.waitKey(10) & 0xFF == 27:
             break

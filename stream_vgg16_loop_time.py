@@ -8,6 +8,7 @@ import sys
 import time
 import cv2
 import torch
+from datetime import datetime  # Import to check current time
 
 sys.path.insert(1, './functions')
 import data_preprocessing

@@ -5,8 +5,8 @@ import torchvision.utils as tutils
 import imageio
 
 import cv2
-
-
+import torch
+import time
 def mask_to_uv(mask):
     # output pntU (width) and pntV (height)
     pntU = np.where(mask)[1] + 0.5
@@ -47,7 +47,8 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
     Plot the refined and final predicitons through a weighted combination and
     thresholding of the layers. (Layers 2 and 3).
     '''
-    # plot up the base data
+    start_time = time.time()
+    # Convert PyTorch tensor to NumPy for processing
     dataX = torch2plt_single(dataX)
     dataPred = dataPred[0]
     # plot up the base data
@@ -58,21 +59,24 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
 
     if cvClean:
         combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
-        cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
+        combined_array = combined.squeeze(0).cpu().numpy()
 
         # Apply Gaussian blur to smooth the image
-        cvIm = cv2.GaussianBlur(cvIm, (17, 17), 0)
+        cvIm = (combined_array * 255).astype(np.uint8)
+        cvIm = cv2.GaussianBlur(cvIm, (31, 31), 0)
+
+        # Adaptive thresholding
         adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
-        ret, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
         
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
-        skeleton = filter_short_contours(skeleton, min_contour_length=50) 
-        #skeleton = filter_contours(skeleton, min_contour_length=100, distance_threshold=50) 
+        #skeleton = filter_short_contours(skeleton, min_contour_length=300) 
+        skeleton = filter_contours(skeleton, angle_threshold=10)
         
+        # Scatter plot for visualization
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
         ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.2)
-
     else:
         # Perform a weighted combination
         combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
@@ -80,19 +84,34 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         ax1.scatter(mask_to_uv(predMask)[0], mask_to_uv(predMask)[1], s=1, color='darkmagenta', alpha=0.07)
 
     if imReturn:
-        # this is for writing a gif output
+        # Generate image for output
         ax1.axis('off')
         fig.canvas.draw()
-        imData = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+        imData = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')  
         width, height = fig.canvas.get_width_height()
         imData = imData.reshape((height, width, 3))
         imData = cv2.cvtColor(imData, cv2.COLOR_RGB2BGR)
+        plt.close()
+
+        # Cropping based on the non-white region
         startH = np.where(imData[int(width / 2), :, 0] < 255)[0][0]
         endH = np.where(imData[int(width / 2), :, 0] < 255)[0][-1]
         startW = np.where(imData[:, int(height / 2), 0] < 255)[0][0]
         endW = np.where(imData[:, int(height / 2), 0] < 255)[0][-1]
         imData = imData[startW:endW, startH:endH, :]
-        plt.close()
+
+        # # Cropping based on the non-white region
+        # imData = torch.tensor(imData).to("cuda")
+        # startH = (imData[int(width / 2), :, 0] < 255).nonzero(as_tuple=True)[0][0].item()
+        # endH = (imData[int(width / 2), :, 0] < 255).nonzero(as_tuple=True)[0][-1].item()
+        # startW = (imData[:, int(height / 2), 0] < 255).nonzero(as_tuple=True)[0][0].item()
+        # endW = (imData[:, int(height / 2), 0] < 255).nonzero(as_tuple=True)[0][-1].item()
+        # imData = imData[startW:endW, startH:endH, :]
+        # imData = imData.cpu().numpy()
+
+        post_time = time.time() - start_time
+        print(f"post_time: {post_time:.4f} seconds")
+
         return imData
     
 def filter_short_contours(skeleton, min_contour_length=50):
@@ -115,50 +134,61 @@ def filter_short_contours(skeleton, min_contour_length=50):
     
     return filtered_skeleton
 
-def filter_contours(skeleton, min_contour_length=50, distance_threshold=20):
+def filter_contours(skeleton, angle_threshold=10):
     """
-    Filters out contours that are not close to the primary shoreline contour.
+    Filters out contours to keep the longest, smooth, connected shoreline and removes parallel lines.
     :param skeleton: Skeletonized binary image.
-    :param min_contour_length: Minimum length of contours to keep.
-    :param distance_threshold: Maximum allowed distance between endpoints for continuity.
-    :return: Image with only long, connected contours retained.
+    :param angle_threshold: Maximum allowable angle (in degrees) for smooth alignment.
+    :return: Image with only smooth, non-parallel contours retained.
     """
     # Find all contours in the skeletonized image
     contours, _ = cv2.findContours(skeleton, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+
     # Identify the longest contour as the primary shoreline
     max_contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=False))
-    
-    # Get the start and end points of the longest contour
-    primary_start = max_contour[0][0]
-    primary_end = max_contour[-1][0]
+
+    # Function to calculate angle between two vectors
+    def calculate_angle(v1, v2):
+        dot_product = np.dot(v1, v2)
+        norm_product = np.linalg.norm(v1) * np.linalg.norm(v2)
+        if norm_product == 0:
+            return 180  # Treat zero-length vectors as perpendicular
+        cos_theta = np.clip(dot_product / norm_product, -1.0, 1.0)
+        return np.degrees(np.arccos(cos_theta))
 
     # Create a blank image to draw the filtered contours
     filtered_skeleton = np.zeros_like(skeleton)
-    
-    # Helper function to calculate Euclidean distance
-    def euclidean_dist(point1, point2):
-        return np.linalg.norm(np.array(point1) - np.array(point2))
-    
-    # Filter contours based on length and proximity to the main contour
+    cv2.drawContours(filtered_skeleton, [max_contour], -1, 255, thickness=1)
+
+    # Get the end points of the primary shoreline
+    primary_start = max_contour[0][0]
+    primary_end = max_contour[-1][0]
+    primary_vector = np.array(primary_end) - np.array(primary_start)
+
     for contour in contours:
-        #contour_length = cv2.arcLength(contour, closed=False)
-        #print(contour_length)
-        
+        if np.array_equal(contour, max_contour):
+            continue  # Skip the primary shoreline
+
         # Get the start and end points of the current contour
         contour_start = contour[0][0]
         contour_end = contour[-1][0]
-        # Check if the contour is either long enough or close enough to the primary contour
+        contour_vector = np.array(contour_end) - np.array(contour_start)
+
+        # Check if the contour is parallel to the primary shoreline
+        angle = calculate_angle(primary_vector, contour_vector)
+
+        if angle < angle_threshold:  # Contour is parallel, remove it
+            continue
+
+        # Check if the contour extends or aligns smoothly with the primary shoreline
         if (
-            euclidean_dist(contour_start, primary_start) < distance_threshold or
-            euclidean_dist(contour_end, primary_end) < distance_threshold or
-            euclidean_dist(contour_start, primary_end) < distance_threshold or
-            euclidean_dist(contour_end, primary_start) < distance_threshold
+            calculate_angle(primary_vector, contour_start - primary_start) < angle_threshold
+            or calculate_angle(primary_vector, contour_end - primary_end) < angle_threshold
         ):
-            # Draw the contour if it meets the criteria
             cv2.drawContours(filtered_skeleton, [contour], -1, 255, thickness=1)
-    
+
     return filtered_skeleton
+
 
 def get_adaptive_threshold(prediction, base_confidence=0.4, percentile=80):
     """
@@ -228,7 +258,7 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         # Convert to cvIm for OpenCV operations
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
         # Apply Gaussian blur
-        cvIm_blurred = cv2.GaussianBlur(cvIm, (7, 7), 0)
+        cvIm_blurred = cv2.GaussianBlur(cvIm, (21, 21), 0)
         
         # Display cvIm after Gaussian blur
         axs[0, 2].imshow(cvIm_blurred, cmap='gray')
@@ -240,7 +270,7 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         # axs[0, 2].set_title("After Adaptive Thresh")
         # axs[0, 2].axis('off')
 
-        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=30)
+        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
         print("adaptive_thres_value:", adaptive_thres_value)
         # Apply threshold
         _, thresh = cv2.threshold(cvIm_blurred, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
@@ -265,7 +295,7 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         #skeleton_ori_otsu = np.column_stack(np.where(skeleton_otsu > 0)) 
         #axs[1, 1].scatter(skeleton_ori_otsu[:, 1], skeleton_ori_otsu[:, 0], s=1, color='m', alpha=0.4)
 
-        skeleton1 = filter_contours(skeleton, min_contour_length=100, distance_threshold=20)
+        skeleton1 = filter_contours(skeleton)
         skeleton_coords1 = np.column_stack(np.where(skeleton1 > 0)) 
         axs[1, 1].scatter(skeleton_coords1[:, 1], skeleton_coords1[:, 0], s=1, color='m', alpha=0.4)
         
