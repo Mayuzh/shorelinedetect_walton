@@ -72,7 +72,7 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
         #skeleton = filter_short_contours(skeleton, min_contour_length=300) 
-        skeleton = filter_contours(skeleton, angle_threshold=10)
+        skeleton = filter_contours(skeleton)
         
         # Scatter plot for visualization
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
@@ -134,7 +134,7 @@ def filter_short_contours(skeleton, min_contour_length=50):
     
     return filtered_skeleton
 
-def filter_contours(skeleton, angle_threshold=10):
+def filter_contours(skeleton, angle_threshold=20):
     """
     Filters out contours to keep the longest, smooth, connected shoreline and removes parallel lines.
     :param skeleton: Skeletonized binary image.
