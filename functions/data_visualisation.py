@@ -63,20 +63,23 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
 
         # Apply Gaussian blur to smooth the image
         cvIm = (combined_array * 255).astype(np.uint8)
-        cvIm = cv2.GaussianBlur(cvIm, (31, 31), 0)
+        cvIm = cv2.GaussianBlur(cvIm, (13, 13), 0)
 
         # Adaptive thresholding
-        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
+        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.3, percentile=50)
         _, thresh = cv2.threshold(cvIm, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
+        #_, thresh = cv2.threshold(cvIm, int(0.8 * 255), 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
         
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
-        #skeleton = filter_short_contours(skeleton, min_contour_length=300) 
-        skeleton = filter_contours(skeleton)
+        skeleton = filter_contours(skeleton) 
+        #skeleton = filter_short_contours(skeleton, min_contour_length=400) 
+        #skeleton = filter_contours(skeleton)
         
         # Scatter plot for visualization
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
-        ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=1, color='m', alpha=0.2)
+        ax1.scatter(skeleton_coords[:, 1], skeleton_coords[:, 0], s=2, color='m', alpha=0.4)
     else:
         # Perform a weighted combination
         combined = (dataPred[2] * 0.4 + dataPred[3] * 0.4 + dataPred[4] * 0.1 + dataPred[5] * 0.1)
@@ -110,7 +113,7 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         # imData = imData.cpu().numpy()
 
         post_time = time.time() - start_time
-        print(f"post_time: {post_time:.4f} seconds")
+        #print(f"post_time: {post_time:.4f} seconds")
 
         return imData
     
@@ -134,12 +137,15 @@ def filter_short_contours(skeleton, min_contour_length=50):
     
     return filtered_skeleton
 
-def filter_contours(skeleton, angle_threshold=20):
+
+def filter_contours(skeleton, angle_threshold=20, proximity_threshold=30):
     """
-    Filters out contours to keep the longest, smooth, connected shoreline and removes parallel lines.
+    Filters out contours to construct the longest, smooth, connected shoreline by keeping parallel segments
+    and merging the closest ones, while removing all unrelated contours.
     :param skeleton: Skeletonized binary image.
     :param angle_threshold: Maximum allowable angle (in degrees) for smooth alignment.
-    :return: Image with only smooth, non-parallel contours retained.
+    :param proximity_threshold: Maximum allowable distance between segments for merging.
+    :return: Image with the constructed longest shoreline.
     """
     # Find all contours in the skeletonized image
     contours, _ = cv2.findContours(skeleton, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -156,15 +162,23 @@ def filter_contours(skeleton, angle_threshold=20):
         cos_theta = np.clip(dot_product / norm_product, -1.0, 1.0)
         return np.degrees(np.arccos(cos_theta))
 
+    # Helper function to calculate Euclidean distance
+    def euclidean_dist(point1, point2):
+        return np.linalg.norm(np.array(point1) - np.array(point2))
+
     # Create a blank image to draw the filtered contours
     filtered_skeleton = np.zeros_like(skeleton)
-    cv2.drawContours(filtered_skeleton, [max_contour], -1, 255, thickness=1)
 
-    # Get the end points of the primary shoreline
+    # Keep track of merged segments
+    merged_contours = [max_contour]
+
+    # Primary vector of the longest contour
     primary_start = max_contour[0][0]
     primary_end = max_contour[-1][0]
     primary_vector = np.array(primary_end) - np.array(primary_start)
 
+    # Identify parallel contours
+    parallel_contours = []
     for contour in contours:
         if np.array_equal(contour, max_contour):
             continue  # Skip the primary shoreline
@@ -176,18 +190,37 @@ def filter_contours(skeleton, angle_threshold=20):
 
         # Check if the contour is parallel to the primary shoreline
         angle = calculate_angle(primary_vector, contour_vector)
+        if angle < angle_threshold:
+            parallel_contours.append(contour)
 
-        if angle < angle_threshold:  # Contour is parallel, remove it
-            continue
+    # Merge parallel contours based on proximity
+    while parallel_contours:
+        closest_contour = None
+        closest_distance = float('inf')
 
-        # Check if the contour extends or aligns smoothly with the primary shoreline
-        if (
-            calculate_angle(primary_vector, contour_start - primary_start) < angle_threshold
-            or calculate_angle(primary_vector, contour_end - primary_end) < angle_threshold
-        ):
-            cv2.drawContours(filtered_skeleton, [contour], -1, 255, thickness=1)
+        for contour in parallel_contours:
+            # Measure proximity to the current merged contours
+            for merged in merged_contours:
+                distance_start = euclidean_dist(contour[0][0], merged[-1][0])
+                distance_end = euclidean_dist(contour[-1][0], merged[-1][0])
+
+                if closest_contour is not None and closest_distance < proximity_threshold:
+                    closest_distance = min(distance_start, distance_end)
+                    closest_contour = contour
+
+        # Merge the closest contour if within proximity threshold
+        if closest_contour and closest_distance < proximity_threshold:
+            merged_contours.append(closest_contour)
+            parallel_contours.remove(closest_contour)
+        else:
+            break  # Stop merging if no contour is close enough
+
+    # Draw the final merged shoreline
+    for contour in merged_contours:
+        cv2.drawContours(filtered_skeleton, [contour], -1, 255, thickness=1)
 
     return filtered_skeleton
+
 
 
 def get_adaptive_threshold(prediction, base_confidence=0.4, percentile=80):
@@ -258,7 +291,7 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         # Convert to cvIm for OpenCV operations
         cvIm = (combined.squeeze(0).numpy() * 255).astype(np.uint8)
         # Apply Gaussian blur
-        cvIm_blurred = cv2.GaussianBlur(cvIm, (21, 21), 0)
+        cvIm_blurred = cv2.GaussianBlur(cvIm, (13, 13), 0)
         
         # Display cvIm after Gaussian blur
         axs[0, 2].imshow(cvIm_blurred, cmap='gray')
@@ -270,10 +303,14 @@ def plot_single_prediction(dataX, dataPred, thres, cvClean=False, imReturn=False
         # axs[0, 2].set_title("After Adaptive Thresh")
         # axs[0, 2].axis('off')
 
-        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.4, percentile=40)
+        adaptive_thres_value = get_adaptive_threshold(combined.squeeze(0).cpu().numpy(), base_confidence=0.2, percentile=50)
         print("adaptive_thres_value:", adaptive_thres_value)
         # Apply threshold
         _, thresh = cv2.threshold(cvIm_blurred, int(adaptive_thres_value * 255), 255, cv2.THRESH_BINARY)
+        # Fill holes using morphological closing
+        # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (19, 19))  # Create a kernel for morphological operations
+        # thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
         _, thresh_otsu = cv2.threshold(cvIm_blurred, int(0.8 * 255), 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         #thresh_otsu = cv2.adaptiveThreshold(cvIm_blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 

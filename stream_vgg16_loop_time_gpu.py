@@ -33,14 +33,13 @@ hedModel = pretrained_weights(hedModel, weightsPath=weightsPath, applyWeights=Tr
 print(f"Load model time: {time.time() - start_time:.4f} seconds")
 
 # Open the video stream
-#cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
-cap = cv2.VideoCapture("./testing/walton_lighthouse/walton_lighthouse-2024-12-02-221643Z.mp4")
+cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+#cap = cv2.VideoCapture("./testing/walton_lighthouse/walton_lighthouse-2024-12-02-221643Z.mp4")
 
 # Define image size
 imSize = (960, 1280)
 #imSize = (1920, 2560)
 #imSize = (320, 480)
-frame_counter = 0
 
 # Check if the video file is opened successfully
 if not cap.isOpened():
@@ -48,16 +47,19 @@ if not cap.isOpened():
 else:
     print("Video file opened successfully.")
 
-# Process the video stream
+frame_counter = 0
+retry_counter = 0
+max_retries = 10  # Maximum number of retries
+
 while cap.isOpened():
     # Check current time
     now = datetime.now()
     current_hour = now.hour
     # If the current time is outside 7 AM to 7 PM, handle downtime
-    # if current_hour < 7 or current_hour >= 19:
-    #     print("STREAM OFF: Current time is outside operational hours (7 AM to 7 PM).")
-    #     time.sleep(300)  # Wait for 5 minutes before checking again
-    #     continue
+    if current_hour < 7 or current_hour >= 19:
+        print("STREAM OFF: Current time is outside operational hours (7 AM to 7 PM).")
+        time.sleep(300)  # Wait for 5 minutes before checking again
+        continue
 
     # Measure time to read one frame from the stream
     start_time = time.time()
@@ -65,6 +67,8 @@ while cap.isOpened():
     read_time = time.time() - start_time
 
     if ret:
+        retry_counter = 0  # Reset retry counter on successful frame read
+
         # Skip every other frame
         if frame_counter % 7 != 0:
             frame_counter += 1
@@ -95,6 +99,15 @@ while cap.isOpened():
         # Measure time to display the result
         start_time = time.time()
         frame_image = cv2.resize(frame_image, (1280, 960))
+
+        # Create a named window and set it to fullscreen
+        # cv2.namedWindow('PreviewWindow', cv2.WND_PROP_FULLSCREEN)
+        # cv2.setWindowProperty('PreviewWindow', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+        cv2.namedWindow('PreviewWindow', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('PreviewWindow', 1280, 960)  # Set desired dimensions
+        cv2.moveWindow('PreviewWindow', 80, 30) 
+
         cv2.imshow('PreviewWindow', frame_image)
         display_time = time.time() - start_time
 
@@ -110,8 +123,16 @@ while cap.isOpened():
         if cv2.waitKey(10) & 0xFF == 27:
             break
     else:
-        print("Error: Could not read frame. Retrying...")
+        print(f"Error: Could not read frame. Retrying ({retry_counter + 1}/{max_retries})...")
         time.sleep(60)  # Wait for 60 seconds before retrying
+        retry_counter += 1
+
+        # Reinitialize cap if retry limit is reached
+        if retry_counter >= max_retries:
+            print("Max retries reached. Reinitializing video stream...")
+            cap.release()
+            cap = cv2.VideoCapture("http://stage-ams-nfs.srv.axds.co/stream/adaptive/ucsc/walton_lighthouse/hls.m3u8")
+            retry_counter = 0
 
 # Release resources and close all OpenCV windows
 cap.release()
