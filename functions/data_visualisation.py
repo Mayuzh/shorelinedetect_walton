@@ -73,8 +73,8 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
         
         # Perform skeletonization to get a thin, consistent line
         skeleton = cv2.ximgproc.thinning(thresh, 0)
-        skeleton = filter_contours(skeleton) 
-        #skeleton = filter_short_contours(skeleton, min_contour_length=400) 
+        #skeleton = filter_contours(skeleton) 
+        skeleton = filter_short_contours(skeleton, min_contour_length=400) 
         
         # Scatter plot for visualization
         skeleton_coords = np.column_stack(np.where(skeleton > 0)) 
@@ -144,10 +144,14 @@ def filter_contours(skeleton, angle_threshold=20, proximity_threshold=30):
     :param skeleton: Skeletonized binary image.
     :param angle_threshold: Maximum allowable angle (in degrees) for smooth alignment.
     :param proximity_threshold: Maximum allowable distance between segments for merging.
-    :return: Image with the constructed longest shoreline.
+    :return: Image with the constructed longest shoreline or an empty image if no contours are found.
     """
     # Find all contours in the skeletonized image
     contours, _ = cv2.findContours(skeleton, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # If no contours are found, return an empty image
+    if not contours:
+        return np.zeros_like(skeleton)
 
     # Identify the longest contour as the primary shoreline
     max_contour = max(contours, key=lambda cnt: cv2.arcLength(cnt, closed=False))
@@ -198,19 +202,22 @@ def filter_contours(skeleton, angle_threshold=20, proximity_threshold=30):
         closest_distance = float('inf')
 
         for contour in parallel_contours:
-            # Measure proximity to the current merged contours
             for merged in merged_contours:
                 distance_start = euclidean_dist(contour[0][0], merged[-1][0])
                 distance_end = euclidean_dist(contour[-1][0], merged[-1][0])
-
-                if closest_contour is not None and closest_distance < proximity_threshold:
-                    closest_distance = min(distance_start, distance_end)
+                distance = min(distance_start, distance_end)
+                if distance < closest_distance:
+                    closest_distance = distance
                     closest_contour = contour
 
         # Merge the closest contour if within proximity threshold
-        if closest_contour and closest_distance < proximity_threshold:
+        if closest_contour is not None and closest_distance < proximity_threshold:
             merged_contours.append(closest_contour)
-            parallel_contours.remove(closest_contour)
+            # Remove the found contour using explicit np.array_equal comparison
+            for idx, c in enumerate(parallel_contours):
+                if np.array_equal(c, closest_contour):
+                    del parallel_contours[idx]
+                    break
         else:
             break  # Stop merging if no contour is close enough
 
