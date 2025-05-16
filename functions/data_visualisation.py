@@ -115,7 +115,49 @@ def plot_refined_single_prediction(dataX, dataPred, thres, cvClean=False, imRetu
                              
         #return imData       
         return imData, adjusted_coords
-                                                                                                
+
+
+def extract_filtered_shoreline_coords(
+    dataPred,
+    thres=0.6,
+    blur_ksize=(13,13),
+    base_confidence=0.3,
+    percentile=60,
+    min_contour_length=400
+):
+    """
+    Given a HED output tensor dataPred of shape [1,6,H,W],
+    runs the same combine→blur→adaptive threshold→thin→filter_short_contours
+    pipeline as plot_refined_single_prediction(cvClean=True),
+    and returns a list of (x,y) coords in that H×W space.
+    """
+    # 1) weighted combine
+    combined = (
+        dataPred[0,2] * 0.4 +
+        dataPred[0,3] * 0.4 +
+        dataPred[0,4] * 0.1 +
+        dataPred[0,5] * 0.1
+    )
+    # 2) to NumPy & 0–255
+    combined_array = combined.squeeze(0).cpu().numpy()
+    cvIm = (combined_array * 255).astype(np.uint8)
+    # 3) Gaussian blur
+    cvIm = cv2.GaussianBlur(cvIm, blur_ksize, 0)
+    # 4) adaptive threshold
+    from data_visualisation import get_adaptive_threshold
+    atv = get_adaptive_threshold(
+        combined.squeeze(0).cpu().numpy(),
+        base_confidence=base_confidence,
+        percentile=percentile
+    )
+    _, thresh = cv2.threshold(cvIm, int(atv * 255), 255, cv2.THRESH_BINARY)
+    # 5) thinning + filter
+    skeleton = cv2.ximgproc.thinning(thresh, 0)
+    skeleton = filter_short_contours(skeleton, min_contour_length=min_contour_length)
+    # 6) extract coords
+    ys, xs = np.where(skeleton > 0)
+    return [(float(x), float(y)) for y, x in zip(ys, xs)]
+                                                                                           
 def filter_short_contours(skeleton, min_contour_length=50):                                                      
     """
     Filters out shorter contours based on a minimum contour length.
